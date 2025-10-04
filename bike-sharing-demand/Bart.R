@@ -12,12 +12,8 @@ trainData <- vroom("BikeShare-IsaacR/bike-sharing-demand/train.csv") |>
 testData <- vroom("BikeShare-IsaacR/bike-sharing-demand/test.csv")
 
 # Define random forest model with tuning
-forest_mod <- rand_forest(
-  mtry = tune(),
-  min_n = tune(),
-  trees = 1000  # more trees for stability
-) %>%
-  set_engine("ranger") %>%
+bart_model <- bart(trees=tune()) %>% # BART figures out depth and learn_rate9
+  set_engine("dbarts") %>% # might need to install10
   set_mode("regression")
 
 # Define recipe (simplified for RF)
@@ -36,7 +32,7 @@ bike_recipe <- recipe(count ~ ., data = trainData) %>%
 # Create workflow
 forest_wf <- workflow() %>%
   add_recipe(bike_recipe) %>%
-  add_model(forest_mod)
+  add_model(bart_model)
 
 # Extract and finalize parameter set
 forest_params <- extract_parameter_set_dials(forest_wf)
@@ -78,4 +74,4 @@ kaggle_submission <- lin_preds |>
   mutate(datetime = as.character(format(datetime)))
 
 # Write CSV
-vroom_write(x = kaggle_submission, file = "./RandomForestPreds.csv", delim = ",")
+vroom_write(x = kaggle_submission, file = "./BARTPreds.csv", delim = ",")

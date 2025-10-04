@@ -4,6 +4,8 @@ library(vroom)
 library(patchwork)
 library(DataExplorer)
 library(GGally)
+library(bonsai)
+library(lightgbm)
 
 # Load data
 trainData <- vroom("BikeShare-IsaacR/bike-sharing-demand/train.csv") |>
@@ -12,12 +14,10 @@ trainData <- vroom("BikeShare-IsaacR/bike-sharing-demand/train.csv") |>
 testData <- vroom("BikeShare-IsaacR/bike-sharing-demand/test.csv")
 
 # Define random forest model with tuning
-forest_mod <- rand_forest(
-  mtry = tune(),
-  min_n = tune(),
-  trees = 1000  # more trees for stability
-) %>%
-  set_engine("ranger") %>%
+boost_model <- boost_tree(tree_depth=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>%
+set_engine("lightgbm") %>% #or "xgboost" but lightgbm is faster
   set_mode("regression")
 
 # Define recipe (simplified for RF)
@@ -34,22 +34,22 @@ bike_recipe <- recipe(count ~ ., data = trainData) %>%
   step_zv(all_predictors()) # remove zero variance predictors
 
 # Create workflow
-forest_wf <- workflow() %>%
+boost_wf <- workflow() %>%
   add_recipe(bike_recipe) %>%
-  add_model(forest_mod)
+  add_model(boost_model)
 
 # Extract and finalize parameter set
-forest_params <- extract_parameter_set_dials(forest_wf)
-forest_params <- finalize(forest_params, trainData)
+boost_params <- extract_parameter_set_dials(boost_wf)
+boost_params <- finalize(boost_params, trainData)
 
 # Build tuning grid
-my_grid <- grid_regular(forest_params, levels = 5)
+my_grid <- grid_regular(boost_params, levels = 5)
 
 # 10-fold CV
 folds <- vfold_cv(trainData, v = 10)
 
 # Tune model
-CV_results <- forest_wf %>%
+CV_results <- boost_wf %>%
   tune_grid(
     resamples = folds,
     grid = my_grid,
@@ -61,7 +61,7 @@ bestTune <- CV_results %>%
   select_best(metric = "rmse")
 
 # Finalize workflow with best parameters and fit
-final_wf <- forest_wf %>%
+final_wf <- boost_wf %>%
   finalize_workflow(bestTune) %>%
   fit(data = trainData)
 
