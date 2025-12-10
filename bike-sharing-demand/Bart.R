@@ -16,7 +16,6 @@ bart_model <- bart(trees=tune()) %>% # BART figures out depth and learn_rate9
   set_engine("dbarts") %>% # might need to install10
   set_mode("regression")
 
-# Define recipe (simplified for RF)
 bike_recipe <- recipe(count ~ ., data = trainData) %>%
   step_mutate(
     weather = ifelse(weather == 4, 3, weather),
@@ -25,9 +24,14 @@ bike_recipe <- recipe(count ~ ., data = trainData) %>%
   ) %>%
   step_mutate(tempHum = temp * humidity) %>%
   step_time(datetime, features = "hour") %>%
-  step_rm(datetime) %>%
+  step_mutate(
+    hour_sin = sin(2 * pi * datetime_hour / 24),
+    hour_cos = cos(2 * pi * datetime_hour / 24)
+  ) %>%
+  step_date(datetime, features = "dow") %>%
   step_dummy(all_nominal_predictors()) %>%
   step_zv(all_predictors()) # remove zero variance predictors
+
 
 # Create workflow
 forest_wf <- workflow() %>%
